@@ -8,6 +8,7 @@ import connectDB from "./db/db.js";
 import userRouter from "./routers/userRouter.js";
 import authRouter from "./routers/authRouter.js";
 import projectRouter from "./routers/projectRouter.js";
+import fileRouter from "./routers/fileRouter.js";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(cookieParser());
 app.use("/auth", authRouter);
 app.use("/user", userRouter);
 app.use("/project", projectRouter);
+app.use("/file", fileRouter);
 
 
 app.get("/", (req, res) => {
