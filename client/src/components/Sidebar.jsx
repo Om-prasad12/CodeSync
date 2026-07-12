@@ -12,7 +12,7 @@ import {
 } from 'react-icons/md';
 import { VscFiles } from 'react-icons/vsc';
 
-const Sidebar = ({ expanded, setExpanded }) => {
+const Sidebar = ({ expanded, setExpanded,isLoggedIn }) => {
   const [openMenuFor, setOpenMenuFor] = useState(null);
 
   const fileItems = [
