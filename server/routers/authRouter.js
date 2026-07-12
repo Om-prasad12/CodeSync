@@ -7,7 +7,7 @@ import {
     verifyEmail,
     checkLoginStatus
 } from "../controllers/authController.js";
-import { verifyUser } from "../middleware/authmiddleware.js";
+import { verifyUser,attachUserInfo } from "../middleware/authmiddleware.js";
 
 const authRouter = express.Router();
 
@@ -21,11 +21,11 @@ authRouter
 
 authRouter
 .route("/logout")
-.get(userLogout);
+.post(verifyUser,userLogout);
 
 authRouter
 .route("/isloggedin")
-.get(verifyUser,checkLoginStatus);
+.get(verifyUser,attachUserInfo,checkLoginStatus);
 
 
 export default authRouter;

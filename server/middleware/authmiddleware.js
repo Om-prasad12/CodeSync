@@ -16,4 +16,29 @@ export function verifyUser(req, res, next) {
   }
 }
 
-export default { verifyUser };
+export async function attachUserInfo(req, res, next) {
+    try {
+        const user = await userModel.findById(req.userId).select(
+            "username email profilePicture"
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found",
+            });
+        }
+
+        req.user = user;
+
+        next();
+    } catch (error) {
+        console.error("Error attaching user info:", error);
+
+        return res.status(500).json({
+            message: "Something went wrong",
+            error: error.message,
+        });
+    }
+}
+
+export default { verifyUser, attachUserInfo };

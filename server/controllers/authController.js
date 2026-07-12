@@ -22,29 +22,38 @@ export const userSignup = async (req, res) => {
             });
         }
 
-        // Uncomment when email verification is implemented
-        // const emailToken = crypto.randomBytes(32).toString("hex");
-
         const user = await userModel.create({
             username,
             email,
             password,
-            // emailToken
         });
 
-        // Uncomment when email verification is implemented
-        // const verifyUrl = `${process.env.BASE_URL}/auth/${user._id}/verify-email/${emailToken}`;
-        // await sendEmail(...);
+        // Generate JWT
+        const token = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        // Send cookie
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
 
         return res.status(201).json({
-            message: "Account created successfully."
+            message: "Account created successfully.",
+            token
         });
 
     } catch (err) {
+        console.error("Error during user signup:", err);
+
         return res.status(500).json({
             message: err.message
         });
-        console.error("Error during user signup:", err.message);
     }
 };
 
@@ -162,6 +171,11 @@ export const userLogout = (req, res) => {
 
 export const checkLoginStatus = (req, res) => {
     return res.status(200).json({
-        loggedIn: !!req.userId
+        loggedIn: true,
+        user: {
+            id: req.user._id,
+            username: req.user.username,
+            profilePicture: req.user.profilePicture,
+        }
     });
 };
