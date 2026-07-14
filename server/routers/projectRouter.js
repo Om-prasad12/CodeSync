@@ -25,12 +25,12 @@ projectRouter
 projectRouter
 .route("/:projectId")
 .get(verifyUser, getProjectById)
-.put(verifyUser, updateProjectName)
+.patch(verifyUser, updateProjectName)
 .delete(verifyUser, deleteProject);
 
 // Add/remove collaborator
 projectRouter
-.route("/collaborators/:projectId")
+.route("/:projectId/collaborators")
 .post(verifyUser, getCollaboratorId, addCollaborator)
 .delete(verifyUser, getCollaboratorId, removeCollaborator);
 

@@ -21,7 +21,7 @@ async function deleteFolderRecursively(fileId) {
 export async function createFile(req, res) {
     try {
         const {
-            project,
+            projectId,
             parentId,
             name,
             type,
@@ -54,7 +54,7 @@ export async function createFile(req, res) {
 
         // Prevent duplicate names in the same folder
         const existing = await fileModel.findOne({
-            project,
+            project: projectId,
             parentId: parentId || null,
             name,
         });
@@ -66,14 +66,13 @@ export async function createFile(req, res) {
         }
 
         const file = await fileModel.create({
-            project,
+            project: projectId,
             parentId: parentId || null,
             name,
             type,
             language: type === "file" ? (language || "plaintext") : "plaintext",
             path,
         });
-
         res.status(201).json({
             message: `${type} created successfully`,
             data: file,

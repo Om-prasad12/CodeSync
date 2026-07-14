@@ -3,12 +3,12 @@ import projectModel from "../models/projectModel.js";
 
 export async function hasProjectAccess(req, res, next) {
     try {
-        let projectId = req.body?.project || req.params.projectId;
+        let projectId = req.body?.projectId || req.params.projectId;
 
-        console.log("userId:", req.userId);
-        console.log("body:", req.body);
-        console.log("params:", req.params);
-        console.log("projectId:", projectId);
+        // console.log("userId:", req.userId);
+        // console.log("body:", req.body);
+        // console.log("params:", req.params);
+        // console.log("projectId:", projectId);
         // For routes that only have a fileId
         if (!projectId && req.params.fileId) {
             const file = await fileModel.findById(req.params.fileId);
