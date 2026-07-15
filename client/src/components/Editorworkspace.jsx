@@ -1,6 +1,25 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { MdClose } from 'react-icons/md';
 import { useFileExplorer } from './Sidebar helper/FileExplorerContext';
+import { getMonacoLanguage } from './Sidebar helper/Getfileicon';
+import Editor, { loader } from '@monaco-editor/react';
+
+// Registered once, globally, before any <Editor> mounts.
+loader.init().then((monaco) => {
+  monaco.editor.defineTheme('codesync-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': '#030712',
+      'editor.lineHighlightBackground': '#111827',
+      'editorGutter.background': '#030712',
+      'minimap.background': '#030712',
+      'editorCursor.foreground': '#60a5fa',       // custom cursor color (blue-400)
+      'editorCursor.background': '#030712',
+    },
+  });
+});
 
 const MIN_LEFT_PERCENT = 25;
 const MAX_LEFT_PERCENT = 80;
@@ -161,29 +180,38 @@ const EditorWorkspace = ({
             </button>
           )}
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-gray-950 text-gray-200 p-3 text-sm">
+        <div className="flex-1 min-h-0 bg-gray-950">
           {selectedFile ? (
             fileContentLoading ? (
-              <span className="text-gray-500">Loading file...</span>
+              <div className="flex items-center justify-center h-full text-sm text-gray-500">
+                Loading file...
+              </div>
             ) : (
-              <textarea
-                key={selectedFile._id}
+              <Editor
+                path={selectedFile._id}
+                height="100%"
+                language={getMonacoLanguage(selectedFile.name)}
+                theme="codesync-dark"
                 value={selectedFileContent ?? ''}
-                onChange={(e) => updateDraftContent(e.target.value)}
-                spellCheck={false}
-                className="block w-full h-full bg-transparent outline-none resize-none text-gray-200 font-mono"
+                onChange={(value) => updateDraftContent(value ?? '')}
+                options={{
+                  automaticLayout: true,
+                  fontSize: 13,
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  padding: { top: 12},
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  cursorStyle: 'line',
+                  cursorBlinking: 'smooth',
+                  cursorWidth: 2,
+                }}
               />
             )
           ) : (
-            <textarea
-              key="empty-editor"
-              value=""
-              readOnly
-              rows={1}
-              spellCheck={false}
-              className="block w-full h-full bg-transparent outline-none resize-none text-gray-200 placeholder-gray-600 font-mono"
-              placeholder="// Start typing your code here..."
-            />
+            <div className="flex items-center justify-center h-full text-sm text-gray-600 font-mono">
+              // Select a file to start editing
+            </div>
           )}
         </div>
       </div>

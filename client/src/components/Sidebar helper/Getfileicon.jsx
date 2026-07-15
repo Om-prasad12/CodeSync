@@ -47,3 +47,38 @@ export const getFileIcon = (fileName = '', isFolder = false) => {
   }
   return <MdInsertDriveFile className="w-4 h-4 text-gray-300" />;
 };
+
+/**
+ * Maps a filename's extension to a Monaco editor language id.
+ * Falls back to 'plaintext' for anything unrecognized.
+ */
+export const getMonacoLanguage = (fileName = '') => {
+  if (fileName.endsWith('.js') || fileName.endsWith('.jsx')) {
+    return 'javascript';
+  } else if (fileName.endsWith('.ts') || fileName.endsWith('.tsx')) {
+    return 'typescript';
+  } else if (fileName.endsWith('.py')) {
+    return 'python';
+  } else if (fileName.endsWith('.cpp') || fileName.endsWith('.cc') || fileName.endsWith('.h') || fileName.endsWith('.hpp')) {
+    return 'cpp';
+  } else if (fileName.endsWith('.c')) {
+    return 'c';
+  } else if (fileName.endsWith('.java')) {
+    return 'java';
+  } else if (fileName.endsWith('.go')) {
+    return 'go';
+  } else if (fileName.endsWith('.rs')) {
+    return 'rust';
+  } else if (fileName.endsWith('.md')) {
+    return 'markdown';
+  } else if (fileName.endsWith('.json')) {
+    return 'json';
+  } else if (fileName.endsWith('.html')) {
+    return 'html';
+  } else if (fileName.endsWith('.css')) {
+    return 'css';
+  } else if (fileName.endsWith('.yml') || fileName.endsWith('.yaml')) {
+    return 'yaml';
+  }
+  return 'plaintext';
+};
