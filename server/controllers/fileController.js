@@ -192,6 +192,7 @@ export async function updateFileContent(req, res) {
 }
 
 // Delete file/folder
+// Delete file/folder
 export async function deleteFile(req, res) {
     try {
         const file = await fileModel.findById(req.params.fileId);
@@ -202,11 +203,11 @@ export async function deleteFile(req, res) {
             });
         }
 
-        await fileModel.deleteMany({
-            parentId: file._id,
-        });
-
-        await file.deleteOne();
+        if (file.type === "folder") {
+            await deleteFolderRecursively(file._id);
+        } else {
+            await file.deleteOne();
+        }
 
         res.status(200).json({
             message: "Deleted successfully",
