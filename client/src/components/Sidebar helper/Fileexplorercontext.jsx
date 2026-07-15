@@ -10,23 +10,21 @@ export const useFileExplorer = () => {
   return ctx;
 };
 
-/**
- * Holds everything shared across file/folder/project rows:
- * - expanded (sidebar collapsed vs full width)
- * - openMenuFor / toggleMenu (which 3-dot menu is open, closes on outside click)
- * - selectedFile (for future "open file in editor" work)
- * - the three action handlers (file / folder / project) — currently just log,
- *   swap the console.log lines for real API calls when ready.
- */
 export const FileExplorerProvider = ({ expanded, children }) => {
   const [openMenuFor, setOpenMenuFor] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFileContent, setSelectedFileContent] = useState(null); // live editor buffer
+  const [savedContent, setSavedContent] = useState(null); // last-saved baseline
+  const [fileContentLoading, setFileContentLoading] = useState(false);
+
+  // { type: 'switch', file, content } | { type: 'close' } | null
+  // Set whenever the user tries to switch/close while the open file is dirty.
+  const [pendingAction, setPendingAction] = useState(null);
 
   const toggleMenu = (id) => {
     setOpenMenuFor((prev) => (prev === id ? null : id));
   };
 
-  // Close whichever 3-dot menu is open on any click outside its anchor
   useEffect(() => {
     if (!openMenuFor) return;
 
@@ -40,19 +38,79 @@ export const FileExplorerProvider = ({ expanded, children }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenuFor]);
 
-  const handleFileAction = (action, fileName) => {
-    console.log(`${action} clicked for file ${fileName}`);
-    setOpenMenuFor(null);
+  const isDirty = !!selectedFile && selectedFileContent !== savedContent;
+
+  // Actually performs the switch — no dirty-check, callers decide when it's safe to call this.
+  const selectFile = async (file, contentOrFetcher) => {
+    const id = file._id || file.id;
+    const alreadySelected = selectedFile && (selectedFile._id || selectedFile.id) === id;
+
+    setSelectedFile(file);
+
+    if (alreadySelected && selectedFileContent != null) {
+      return;
+    }
+
+    if (typeof contentOrFetcher === 'function') {
+      setFileContentLoading(true);
+      try {
+        const content = await contentOrFetcher();
+        setSelectedFileContent(content ?? '');
+        setSavedContent(content ?? '');
+      } catch (err) {
+        console.log('Failed to fetch file content:', err);
+        setSelectedFileContent('');
+        setSavedContent('');
+      } finally {
+        setFileContentLoading(false);
+      }
+    } else {
+      const value = contentOrFetcher ?? '';
+      setSelectedFileContent(value);
+      setSavedContent(value);
+    }
   };
 
-  const handleFolderAction = (action, folderId, folderName) => {
-    console.log(`${action} clicked for folder ${folderName} (${folderId})`);
-    setOpenMenuFor(null);
+  // What FileRow/menus should call instead of selectFile directly — guards against
+  // silently discarding unsaved changes when switching to a different file.
+  const requestSelectFile = (file, content) => {
+    const id = file._id || file.id;
+    const sameFile = selectedFile && (selectedFile._id || selectedFile.id) === id;
+
+    if (sameFile) {
+      selectFile(file, content); // no-op-safe, see selectFile's alreadySelected guard
+      return;
+    }
+
+    if (isDirty) {
+      setPendingAction({ type: 'switch', file, content });
+    } else {
+      selectFile(file, content);
+    }
   };
 
-  const handleProjectAction = (action, projectId, projectName) => {
-    console.log(`${action} clicked for project ${projectName} (${projectId})`);
-    setOpenMenuFor(null);
+  const closeFile = () => {
+    setSelectedFile(null);
+    setSelectedFileContent(null);
+    setSavedContent(null);
+  };
+
+  const requestCloseFile = () => {
+    if (isDirty) {
+      setPendingAction({ type: 'close' });
+    } else {
+      closeFile();
+    }
+  };
+
+  const cancelPendingAction = () => setPendingAction(null);
+
+  const updateDraftContent = (content) => {
+    setSelectedFileContent(content);
+  };
+
+  const markSaved = (content) => {
+    setSavedContent(content);
   };
 
   const value = {
@@ -61,9 +119,18 @@ export const FileExplorerProvider = ({ expanded, children }) => {
     toggleMenu,
     selectedFile,
     setSelectedFile,
-    handleFileAction,
-    handleFolderAction,
-    handleProjectAction
+    selectedFileContent,
+    updateDraftContent,
+    savedContent,
+    markSaved,
+    isDirty,
+    fileContentLoading,
+    selectFile,
+    requestSelectFile,
+    closeFile,
+    requestCloseFile,
+    pendingAction,
+    cancelPendingAction,
   };
 
   return (

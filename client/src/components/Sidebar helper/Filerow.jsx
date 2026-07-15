@@ -1,15 +1,23 @@
-import React from 'react';
-import { MdMoreVert, MdOpenInNew, MdEdit, MdDelete } from 'react-icons/md';
-import { useFileExplorer } from './Fileexplorercontext';
-import { getFileIcon } from './Getfileicon';
-import ActionMenu from './ActionMenu';
+import React, { useState } from "react";
+import { MdMoreVert, MdOpenInNew, MdEdit, MdDelete } from "react-icons/md";
+import { useFileExplorer } from "./Fileexplorercontext";
+import { getFileIcon } from "./Getfileicon";
+import ActionMenu from "./ActionMenu";
+import InputModal from "./InputModal";
 
-/** A single file leaf in the tree — icon + name + 3-dot menu (Open/Rename/Delete) */
-const FileRow = ({ node, depth }) => {
-  const { expanded, openMenuFor, toggleMenu, selectedFile, setSelectedFile, handleFileAction } =
-    useFileExplorer();
+const FileRow = ({ node, depth, renameFile, deleteFile }) => {
+  const {
+    expanded,
+    openMenuFor,
+    toggleMenu,
+    selectedFile,
+    requestSelectFile,
+    closeFile,
+    isDirty,
+  } = useFileExplorer();
 
-  const isActive = selectedFile === node._id;
+  const isActive = selectedFile && (selectedFile._id || selectedFile.id) === node._id;
+  const [activeModal, setActiveModal] = useState(null);
   const indent = expanded ? { paddingLeft: `${depth * 14 + 12}px` } : undefined;
 
   if (!expanded) {
@@ -18,7 +26,7 @@ const FileRow = ({ node, depth }) => {
         className={`
           relative flex items-center justify-center py-2.5 px-3 cursor-pointer
           hover:bg-gray-800 transition-colors group rounded-md mx-1
-          ${isActive ? 'bg-gradient-to-tr from-blue-600 to-blue-500' : ''}
+          ${isActive ? "bg-gradient-to-tr from-blue-600 to-blue-500" : ""}
         `}
       >
         {getFileIcon(node.name)}
@@ -32,12 +40,12 @@ const FileRow = ({ node, depth }) => {
   return (
     <div
       data-menu-anchor
-      onClick={() => setSelectedFile(node._id)}
+      onClick={() => requestSelectFile(node, node.content)}
       style={indent}
       className={`
         relative flex items-center justify-between py-1.5 pr-3 hover:bg-gray-800 cursor-pointer text-sm
         transition-colors group rounded-md mx-1
-        ${isActive ? 'bg-gradient-to-tr from-blue-600 to-blue-500 text-white' : 'text-gray-300'}
+        ${isActive ? "bg-gradient-to-tr from-blue-600 to-blue-500 text-white" : "text-gray-300"}
       `}
     >
       <div className="flex items-center min-w-0 flex-1 pr-2">
@@ -60,10 +68,51 @@ const FileRow = ({ node, depth }) => {
       {openMenuFor === node._id && (
         <ActionMenu
           items={[
-            { label: 'Open', icon: <MdOpenInNew className="w-4 h-4" />, action: () => handleFileAction('open', node.name) },
-            { label: 'Rename', icon: <MdEdit className="w-4 h-4" />, action: () => handleFileAction('rename', node.name) },
-            { label: 'Delete', icon: <MdDelete className="w-4 h-4" />, action: () => handleFileAction('delete', node.name), danger: true }
+            {
+              label: "Open",
+              icon: <MdOpenInNew className="w-4 h-4" />,
+              action: () => {
+                toggleMenu(node._id);
+                requestSelectFile(node, node.content);
+              },
+            },
+            {
+              label: "Rename",
+              icon: <MdEdit className="w-4 h-4" />,
+              action: () => {
+                toggleMenu(node._id);
+                setActiveModal("rename");
+              },
+            },
+            {
+              label: "Delete",
+              icon: <MdDelete className="w-4 h-4" />,
+              action: () => {
+                toggleMenu(node._id);
+                if (isActive) {
+                  closeFile();
+                }
+                deleteFile(node._id);
+              },
+              danger: true,
+            },
           ]}
+        />
+      )}
+      {activeModal === "rename" && (
+        <InputModal
+          title="Rename File"
+          label="File Name"
+          initialValue={node.name}
+          confirmLabel="Rename"
+          onConfirm={async (val) => {
+            const updated = await renameFile(node._id, val);
+            if (isActive && updated) {
+              requestSelectFile(updated, updated.content);
+            }
+            setActiveModal(null);
+          }}
+          onCancel={() => setActiveModal(null)}
         />
       )}
     </div>

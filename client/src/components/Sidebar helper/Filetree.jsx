@@ -4,16 +4,17 @@ import FileRow from './FileRow';
 import FolderRow from './FolderRow';
 
 /** Renders a mixed list of file/folder tree nodes at a given indent depth */
-const FileTree = ({ nodes, depth }) => {
+const FileTree = ({ nodes, depth, createFile, createFolder, renameFile, deleteFile }) => {
   const { expanded } = useFileExplorer();
 
   return (
     <div className={expanded ? 'space-y-0.5' : 'space-y-2 pt-1'}>
       {nodes.map((node) =>
         node.type === 'folder' ? (
-          <FolderRow key={node._id} node={node} depth={depth} />
+          <FolderRow key={node._id} node={node} depth={depth} createFolder={createFolder} createFile={createFile} renameFile={renameFile} deleteFile={deleteFile} 
+           />
         ) : (
-          <FileRow key={node._id} node={node} depth={depth} />
+          <FileRow key={node._id} node={node} depth={depth} renameFile={renameFile} deleteFile={deleteFile} />
         )
       )}
     </div>

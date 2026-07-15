@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   MdMoreVert,
   MdEdit,
@@ -14,17 +14,40 @@ import { useFileExplorer } from './FileExplorerContext';
 import { buildTree } from './Buildtree';
 import ActionMenu from './ActionMenu';
 import FileTree from './FileTree';
+import InputModal from './InputModal';
 
 /**
  * One project in the sidebar. Clicking it expands/collapses its file tree
  * (accordion — opening another project closes this one, handled by the parent
  * only tracking a single `selectedProject` id). Its own 3-dot menu covers
  * project-level actions: new file/folder at root, rename/delete project,
- * add/remove collaborator.
+ * add/remove collaborator. Actions needing text input open InputModal;
+ * Delete fires immediately since it needs no input.
  */
-const ProjectItem = ({ id, name, isOpen, fileItems, filesLoading, onClick }) => {
-  const { expanded, openMenuFor, toggleMenu, handleProjectAction } = useFileExplorer();
+const ProjectItem = ({
+  id,
+  name,
+  isOpen,
+  fileItems,
+  filesLoading,
+  onClick,
+  createFile,
+  createFolder,
+  renameProject,
+  deleteProject,
+  addCollaborator,
+  removeCollaborator,
+  renameFile,
+  deleteFile
+}) => {
+  const { expanded, openMenuFor, toggleMenu } = useFileExplorer();
+  const [activeModal, setActiveModal] = useState(null); // 'new-file' | 'new-folder' | 'rename' | 'add-collaborator' | 'remove-collaborator' | null
   const tree = fileItems ? buildTree(fileItems) : [];
+
+  const closeMenuAnd = (fn) => () => {
+    toggleMenu(id); // menu is open for this id, so this closes it
+    fn();
+  };
 
   if (!expanded) {
     return (
@@ -70,12 +93,37 @@ const ProjectItem = ({ id, name, isOpen, fileItems, filesLoading, onClick }) => 
         {openMenuFor === id && (
           <ActionMenu
             items={[
-              { label: 'New File', icon: <MdNoteAdd className="w-4 h-4" />, action: () => handleProjectAction('new-file', id, name) },
-              { label: 'New Folder', icon: <MdCreateNewFolder className="w-4 h-4" />, action: () => handleProjectAction('new-folder', id, name) },
-              { label: 'Rename Project', icon: <MdEdit className="w-4 h-4" />, action: () => handleProjectAction('rename', id, name) },
-              { label: 'Delete Project', icon: <MdDelete className="w-4 h-4" />, action: () => handleProjectAction('delete', id, name), danger: true },
-              { label: 'Add Collaborator', icon: <MdPersonAdd className="w-4 h-4" />, action: () => handleProjectAction('add-collaborator', id, name) },
-              { label: 'Remove Collaborator', icon: <MdPersonRemove className="w-4 h-4" />, action: () => handleProjectAction('remove-collaborator', id, name) }
+              {
+                label: 'New File',
+                icon: <MdNoteAdd className="w-4 h-4" />,
+                action: closeMenuAnd(() => setActiveModal('new-file'))
+              },
+              {
+                label: 'New Folder',
+                icon: <MdCreateNewFolder className="w-4 h-4" />,
+                action: closeMenuAnd(() => setActiveModal('new-folder'))
+              },
+              {
+                label: 'Rename Project',
+                icon: <MdEdit className="w-4 h-4" />,
+                action: closeMenuAnd(() => setActiveModal('rename'))
+              },
+              {
+                label: 'Delete Project',
+                icon: <MdDelete className="w-4 h-4" />,
+                action: closeMenuAnd(() => deleteProject(id)),
+                danger: true
+              },
+              {
+                label: 'Add Collaborator',
+                icon: <MdPersonAdd className="w-4 h-4" />,
+                action: closeMenuAnd(() => setActiveModal('add-collaborator'))
+              },
+              {
+                label: 'Remove Collaborator',
+                icon: <MdPersonRemove className="w-4 h-4" />,
+                action: closeMenuAnd(() => setActiveModal('remove-collaborator'))
+              }
             ]}
           />
         )}
@@ -87,8 +135,78 @@ const ProjectItem = ({ id, name, isOpen, fileItems, filesLoading, onClick }) => 
           {!filesLoading && tree.length === 0 && (
             <div className="px-3 py-1 text-xs text-gray-500">No files</div>
           )}
-          {!filesLoading && tree.length > 0 && <FileTree nodes={tree} depth={0} />}
+          {!filesLoading && tree.length > 0 && <FileTree nodes={tree} depth={0} createFile={createFile} createFolder={createFolder} renameFile={renameFile} deleteFile={deleteFile} />}
         </div>
+      )}
+
+      {activeModal === 'new-file' && (
+        <InputModal
+          title="New File"
+          label="File name"
+          placeholder="e.g. index.js"
+          confirmLabel="Create"
+          onConfirm={(val) => {
+            createFile(id, val);
+            setActiveModal(null);
+          }}
+          onCancel={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'new-folder' && (
+        <InputModal
+          title="New Folder"
+          label="Folder name"
+          placeholder="e.g. components"
+          confirmLabel="Create"
+          onConfirm={(val) => {
+            createFolder(id, val);
+            setActiveModal(null);
+          }}
+          onCancel={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'rename' && (
+        <InputModal
+          title="Rename Project"
+          label="Project name"
+          initialValue={name}
+          confirmLabel="Rename"
+          onConfirm={(val) => {
+            renameProject(id, val);
+            setActiveModal(null);
+          }}
+          onCancel={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'add-collaborator' && (
+        <InputModal
+          title="Add Collaborator"
+          label="Email"
+          placeholder="teammate@example.com"
+          confirmLabel="Add"
+          onConfirm={(val) => {
+            addCollaborator(id, val);
+            setActiveModal(null);
+          }}
+          onCancel={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'remove-collaborator' && (
+        <InputModal
+          title="Remove Collaborator"
+          label="Email"
+          placeholder="teammate@example.com"
+          confirmLabel="Remove"
+          onConfirm={(val) => {
+            removeCollaborator(id, val);
+            setActiveModal(null);
+          }}
+          onCancel={() => setActiveModal(null)}
+        />
       )}
     </div>
   );
