@@ -1,4 +1,5 @@
 import projectModel from "../models/projectModel.js";
+import { getIO } from "../sockets/index.js";
 
 // Create Project
 export async function createProject(req, res) {
@@ -25,8 +26,13 @@ export async function createProject(req, res) {
 export async function getMyProjects(req, res) {
     try {
         const projects = await projectModel.find({
-            owner: req.userId,
-        }).populate("collaborators", "username email profilePicture");
+            $or: [
+                { owner: req.userId },
+                { collaborators: req.userId },
+            ],
+        })
+        .populate("owner", "username email profilePicture")
+        .populate("collaborators", "username email profilePicture");
 
         res.status(200).json(projects);
     } catch (error) {
@@ -38,7 +44,7 @@ export async function getMyProjects(req, res) {
     }
 }
 
-//get project by id
+// get project by id
 export async function getProjectById(req, res) {
     try {
         const project = await projectModel.findById(req.params.projectId)
@@ -119,6 +125,11 @@ export async function addCollaborator(req, res) {
         project.collaborators.push(req.collaboratorId);
         await project.save();
 
+        getIO().to(project._id.toString()).emit("collaborator:added", {
+            projectId: project._id.toString(),
+            collaboratorId: req.collaboratorId,
+        });
+
         res.status(200).json({
             message: "Collaborator added successfully",
             data: project,
@@ -164,6 +175,11 @@ export async function removeCollaborator(req, res) {
         );
 
         await project.save();
+
+        getIO().to(project._id.toString()).emit("collaborator:removed", {
+            projectId: project._id.toString(),
+            collaboratorId: req.collaboratorId.toString(),
+        });
 
         res.status(200).json({
             message: "Collaborator removed successfully",
