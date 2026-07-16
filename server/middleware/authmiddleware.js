@@ -7,8 +7,9 @@ export function verifyUser(req, res, next) {
   const token = req.cookies.token;
   if (!token) return res.status(401).json({ message: 'Login first' });
   try {
-    const { id } = jwt.verify(token, process.env.JWT_SECRET);
+    const { id,username } = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = id;
+    req.username = username;
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });
