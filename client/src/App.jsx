@@ -11,6 +11,7 @@ import Dashboard from "./components/Dashboard";
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(null);
   const [username, setUsername] = useState("");
+  const [userId, setUserId] = useState("");
 
   // Reusable — called once on load, AND again after login/signup succeed,
   // so React's state stays in sync with the actual cookie/session.
@@ -22,9 +23,11 @@ function App() {
       );
       setIsLoggedIn(res.data.loggedIn);
       setUsername(res.data.user?.username || "");
+      setUserId(res.data.user?.id || "");
     } catch (err) {
       setIsLoggedIn(false);
       setUsername("");
+      setUserId("");
     }
   }, []);
 
@@ -76,7 +79,7 @@ function App() {
         <Route
           path="/"
           element={ isLoggedIn ? (
-            <Dashboard username={username} onLogout={handleLogout} isLoggedIn={isLoggedIn} />
+            <Dashboard username={username} userId={userId} onLogout={handleLogout} isLoggedIn={isLoggedIn} />
           ) : (
             <Navigate to="/login" replace />
           )}

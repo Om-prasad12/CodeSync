@@ -5,7 +5,7 @@ import EditorWorkspace from "../components/Editorworkspace";
 import { FileExplorerProvider } from "../components/Sidebar helper/FileExplorerContext";
 import { useProjectExplorer } from "../components/Sidebar helper/useProjectExplorer";
 
-function Dashboard({ username, onLogout, isLoggedIn }) {
+function Dashboard({ username, userId, onLogout, isLoggedIn }) {
   const [expanded, setExpanded] = useState(true);
   const {
     project,
@@ -23,7 +23,7 @@ function Dashboard({ username, onLogout, isLoggedIn }) {
     renameFile,
     deleteFile,
     updateFileContent,
-  } = useProjectExplorer(isLoggedIn);
+  } = useProjectExplorer(isLoggedIn,username,userId);
 
   return (
     <FileExplorerProvider expanded={expanded}>
