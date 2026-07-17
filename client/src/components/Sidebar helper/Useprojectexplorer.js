@@ -23,7 +23,7 @@ import {
  * - joins/leaves the socket.io room for whichever project is open, and reacts
  *   to real-time events broadcast by other collaborators in that room
  */
-export const useProjectExplorer = (isLoggedIn, username, userId) => {
+export const useProjectExplorer = (isLoggedIn, username, userId,closeFile,selectedFile) => {
   // List of all projects the logged-in user owns/collaborates on
   const [project, setProject] = useState([]);
 
@@ -225,6 +225,10 @@ export const useProjectExplorer = (isLoggedIn, username, userId) => {
   // ---------------------------------------------------------------------
   const handleProjectClick = (projectId) => {
     if (selectedProject === projectId) {
+      //close the project if it's already open
+      if (selectedFile && selectedFile.project === projectId) {
+        closeFile();
+      }
       setSelectedProject(null);
       setFileItems(null);
       return;

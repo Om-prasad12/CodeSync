@@ -26,6 +26,54 @@ const MAX_LEFT_PERCENT = 80;
 const MIN_VERTICAL_PERCENT = 15;
 const MAX_VERTICAL_PERCENT = 85;
 
+// Deterministic gradient per username — same person always gets the same
+// color within a session, mirroring Navbar's getAvatarGradient approach.
+const VIEWER_GRADIENTS = [
+  'from-blue-500 to-blue-400',
+  'from-violet-500 to-purple-400',
+  'from-emerald-500 to-teal-400',
+  'from-pink-500 to-rose-400',
+  'from-amber-500 to-orange-400',
+  'from-cyan-500 to-sky-400',
+];
+
+const getViewerGradient = (name) => {
+  if (!name) return VIEWER_GRADIENTS[0];
+  const charSum = name.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0);
+  return VIEWER_GRADIENTS[charSum % VIEWER_GRADIENTS.length];
+};
+
+// One avatar bubble with a custom floating tooltip on hover (matches the
+// hover-label pattern already used in the collapsed sidebar's FileRow/etc.)
+const ViewerAvatar = ({ username }) => {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div
+        className={`w-6 h-6 rounded-full bg-gradient-to-tr ${getViewerGradient(username)} flex items-center justify-center text-[10px] font-semibold text-white ring-2 ring-gray-900 shadow-md cursor-default transition-transform hover:scale-110 hover:z-10 relative`}
+      >
+        {username?.[0]?.toUpperCase() || '?'}
+        {/* Live indicator dot */}
+        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-gray-900 animate-pulse" />
+      </div>
+
+      {/* Custom floating tooltip */}
+      <div
+        className={`absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white shadow-lg transition-all pointer-events-none
+          ${hovered ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-1 invisible'}`}
+      >
+        {username}
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800" />
+      </div>
+    </div>
+  );
+};
+
 const EditorWorkspace = ({
   inputContent,
   outputContent,
@@ -43,6 +91,7 @@ const EditorWorkspace = ({
     requestCloseFile,
     pendingAction,
     cancelPendingAction,
+    fileViewers, // others currently viewing this same file, via socket presence
   } = useFileExplorer();
 
   const containerRef = useRef(null);
@@ -169,16 +218,39 @@ const EditorWorkspace = ({
             )}
             {saving && <span className="text-gray-500 text-[11px]">Saving...</span>}
           </span>
-          {selectedFile && (
-            <button
-              type="button"
-              onClick={requestCloseFile}
-              className="p-1 rounded-md hover:bg-gray-700 transition-colors flex-shrink-0 ml-2"
-              aria-label="Close file"
-            >
-              <MdClose className="w-4 h-4 text-gray-400" />
-            </button>
-          )}
+
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            {/* Viewer presence avatars — only rendered when someone else has this file open */}
+            {selectedFile && fileViewers && fileViewers.length > 0 && (
+              <div className="flex items-center -space-x-2">
+                {fileViewers.slice(0, 3).map((viewer) => (
+                  <ViewerAvatar key={viewer.userId} username={viewer.username} />
+                ))}
+                {fileViewers.length > 3 && (
+                  <div className="relative group">
+                    <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-[10px] font-semibold text-gray-300 ring-2 ring-gray-900 shadow-md cursor-default">
+                      +{fileViewers.length - 3}
+                    </div>
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      {fileViewers.slice(3).map((v) => v.username).join(', ')}
+                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedFile && (
+              <button
+                type="button"
+                onClick={requestCloseFile}
+                className="p-1 rounded-md hover:bg-gray-700 transition-colors flex-shrink-0"
+                aria-label="Close file"
+              >
+                <MdClose className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex-1 min-h-0 bg-gray-950">
           {selectedFile ? (

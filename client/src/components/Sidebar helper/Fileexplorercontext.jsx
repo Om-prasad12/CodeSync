@@ -1,21 +1,36 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
+import { socket } from "../../socket";
 
 const FileExplorerContext = createContext(null);
 
 export const useFileExplorer = () => {
   const ctx = useContext(FileExplorerContext);
   if (!ctx) {
-    throw new Error('useFileExplorer must be used inside <FileExplorerProvider>');
+    throw new Error(
+      "useFileExplorer must be used inside <FileExplorerProvider>",
+    );
   }
   return ctx;
 };
 
-export const FileExplorerProvider = ({ expanded, children }) => {
+export const FileExplorerProvider = ({
+  expanded,
+  children,
+  username,
+  userId,
+}) => {
   const [openMenuFor, setOpenMenuFor] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFileContent, setSelectedFileContent] = useState(null); // live editor buffer
   const [savedContent, setSavedContent] = useState(null); // last-saved baseline
   const [fileContentLoading, setFileContentLoading] = useState(false);
+  const [fileViewers, setFileViewers] = useState([]);
 
   // { type: 'switch', file, content } | { type: 'close' } | null
   // Set whenever the user tries to switch/close while the open file is dirty.
@@ -29,21 +44,65 @@ export const FileExplorerProvider = ({ expanded, children }) => {
     if (!openMenuFor) return;
 
     const handleClickOutside = (e) => {
-      if (!e.target.closest('[data-menu-anchor]')) {
+      if (!e.target.closest("[data-menu-anchor]")) {
         setOpenMenuFor(null);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuFor]);
 
   const isDirty = !!selectedFile && selectedFileContent !== savedContent;
 
+const currentFileRoomRef = useRef(null);
+const fileId = selectedFile?._id || selectedFile?.id || null;
+
+useEffect(() => {
+  if (fileId) {
+    socket.emit("join-file", { fileId, username });
+    currentFileRoomRef.current = fileId;
+  }
+
+  setFileViewers([]); // reset when switching files
+
+  // NEW: populate with whoever was already in the room when I joined
+  const handleExistingViewers = ({ fileId: eventFileId, viewers }) => {
+    if (eventFileId !== fileId) return; // guard against stale/late responses
+    setFileViewers(viewers);
+  };
+
+  const handleUserJoinedFile = ({ userId: joinedUserId, username: joinedUsername }) => {
+    setFileViewers((prev) => {
+      if (prev.some((v) => v.userId === joinedUserId)) return prev;
+      return [...prev, { userId: joinedUserId, username: joinedUsername }];
+    });
+  };
+
+  const handleUserLeftFile = ({ userId: leftUserId }) => {
+    setFileViewers((prev) => prev.filter((v) => v.userId !== leftUserId));
+  };
+
+  socket.on("existing-file-viewers", handleExistingViewers);
+  socket.on("user-joined-file", handleUserJoinedFile);
+  socket.on("user-left-file", handleUserLeftFile);
+
+  return () => {
+    if (currentFileRoomRef.current) {
+      socket.emit("leave-file", { fileId: currentFileRoomRef.current, username });
+      currentFileRoomRef.current = null;
+    }
+    socket.off("existing-file-viewers", handleExistingViewers);
+    socket.off("user-joined-file", handleUserJoinedFile);
+    socket.off("user-left-file", handleUserLeftFile);
+  };
+}, [fileId, username]);
+
   // Actually performs the switch — no dirty-check, callers decide when it's safe to call this.
   const selectFile = async (file, contentOrFetcher) => {
     const id = file._id || file.id;
-    const alreadySelected = selectedFile && (selectedFile._id || selectedFile.id) === id;
+    const alreadySelected =
+      selectedFile && (selectedFile._id || selectedFile.id) === id;
 
     setSelectedFile(file);
 
@@ -51,21 +110,21 @@ export const FileExplorerProvider = ({ expanded, children }) => {
       return;
     }
 
-    if (typeof contentOrFetcher === 'function') {
+    if (typeof contentOrFetcher === "function") {
       setFileContentLoading(true);
       try {
         const content = await contentOrFetcher();
-        setSelectedFileContent(content ?? '');
-        setSavedContent(content ?? '');
+        setSelectedFileContent(content ?? "");
+        setSavedContent(content ?? "");
       } catch (err) {
-        console.log('Failed to fetch file content:', err);
-        setSelectedFileContent('');
-        setSavedContent('');
+        console.log("Failed to fetch file content:", err);
+        setSelectedFileContent("");
+        setSavedContent("");
       } finally {
         setFileContentLoading(false);
       }
     } else {
-      const value = contentOrFetcher ?? '';
+      const value = contentOrFetcher ?? "";
       setSelectedFileContent(value);
       setSavedContent(value);
     }
@@ -75,7 +134,8 @@ export const FileExplorerProvider = ({ expanded, children }) => {
   // silently discarding unsaved changes when switching to a different file.
   const requestSelectFile = (file, content) => {
     const id = file._id || file.id;
-    const sameFile = selectedFile && (selectedFile._id || selectedFile.id) === id;
+    const sameFile =
+      selectedFile && (selectedFile._id || selectedFile.id) === id;
 
     if (sameFile) {
       selectFile(file, content); // no-op-safe, see selectFile's alreadySelected guard
@@ -83,7 +143,7 @@ export const FileExplorerProvider = ({ expanded, children }) => {
     }
 
     if (isDirty) {
-      setPendingAction({ type: 'switch', file, content });
+      setPendingAction({ type: "switch", file, content });
     } else {
       selectFile(file, content);
     }
@@ -97,7 +157,7 @@ export const FileExplorerProvider = ({ expanded, children }) => {
 
   const requestCloseFile = () => {
     if (isDirty) {
-      setPendingAction({ type: 'close' });
+      setPendingAction({ type: "close" });
     } else {
       closeFile();
     }
@@ -131,6 +191,7 @@ export const FileExplorerProvider = ({ expanded, children }) => {
     requestCloseFile,
     pendingAction,
     cancelPendingAction,
+    fileViewers,
   };
 
   return (
