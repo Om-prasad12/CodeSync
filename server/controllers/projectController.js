@@ -86,6 +86,13 @@ export async function updateProjectName(req, res) {
         project.name = req.body.name;
         await project.save();
 
+        getIO().to(project._id.toString()).emit("project:updated", {
+            projectId: project._id.toString(),
+            updatedName: project.name,
+            updatedBy: req.userId,
+            username: req.username,
+        });
+
         res.status(200).json({
             message: "Project updated successfully",
             data: project,
@@ -127,7 +134,8 @@ export async function addCollaborator(req, res) {
 
         getIO().to(project._id.toString()).emit("collaborator:added", {
             projectId: project._id.toString(),
-            collaboratorId: req.collaboratorId,
+            addedBy: req.userId,
+            username: req.username,
         });
 
         res.status(200).json({
@@ -178,7 +186,9 @@ export async function removeCollaborator(req, res) {
 
         getIO().to(project._id.toString()).emit("collaborator:removed", {
             projectId: project._id.toString(),
-            collaboratorId: req.collaboratorId.toString(),
+            removedBy: req.userId,
+            username: req.username,
+            removedCollaboratorId: req.collaboratorId.toString()
         });
 
         res.status(200).json({
@@ -211,7 +221,16 @@ export async function deleteProject(req, res) {
             });
         }
 
+        const projectId = project._id.toString();
+        const projectName = project.name;
+        
         await project.deleteOne();
+        getIO().to(projectId).emit("project:deleted", {
+            projectId,
+            projectName,
+            deletedBy: req.userId,
+            username: req.username,
+        });
 
         res.status(200).json({
             message: "Project deleted successfully",

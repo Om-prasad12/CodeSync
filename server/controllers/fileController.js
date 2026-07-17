@@ -1,20 +1,25 @@
 import fileModel from "../models/fileModel.js";
 import projectModel from "../models/projectModel.js";
+import { getIO } from "../sockets/index.js"; 
 
-
-// Delete folder recursively
-async function deleteFolderRecursively(fileId) {
+// Delete folder recursively — now collects every deleted id so we can
+// broadcast the full list (frontend needs to remove nested children too)
+async function deleteFolderRecursively(fileId, deletedIds = []) {
     const children = await fileModel.find({ parentId: fileId });
 
     for (const child of children) {
         if (child.type === "folder") {
-            await deleteFolderRecursively(child._id);
+            await deleteFolderRecursively(child._id, deletedIds);
         } else {
             await child.deleteOne();
+            deletedIds.push(child._id.toString());
         }
     }
 
     await fileModel.findByIdAndDelete(fileId);
+    deletedIds.push(fileId.toString());
+
+    return deletedIds;
 }
 
 // Create File/Folder
@@ -27,7 +32,6 @@ export async function createFile(req, res) {
             type,
             language
         } = req.body;
-
         
         let path = "";
 
@@ -73,6 +77,13 @@ export async function createFile(req, res) {
             language: type === "file" ? (language || "plaintext") : "plaintext",
             path,
         });
+
+        getIO().to(file.project.toString()).emit("file:created", {
+            file,
+            createdBy: req.userId,
+            username: req.username
+        });
+
         res.status(201).json({
             message: `${type} created successfully`,
             data: file,
@@ -141,6 +152,11 @@ export async function renameFile(req, res) {
         file.name = req.body.name;
 
         await file.save();
+        getIO().to(file.project.toString()).emit("file:renamed",{
+            file,
+            renamedBy: req.userId,
+            username: req.username
+        });
 
         res.status(200).json({
             message: "Renamed successfully",
@@ -177,6 +193,10 @@ export async function updateFileContent(req, res) {
 
         await file.save();
 
+        // Not broadcasting this one by default — every keystroke/save from the
+        // editor would otherwise flood every collaborator's screen. Add it back
+        // (e.g. "file:content-updated") if you want live co-editing later.
+
         res.status(200).json({
             message: "Content updated",
             data: file,
@@ -192,7 +212,6 @@ export async function updateFileContent(req, res) {
 }
 
 // Delete file/folder
-// Delete file/folder
 export async function deleteFile(req, res) {
     try {
         const file = await fileModel.findById(req.params.fileId);
@@ -203,11 +222,17 @@ export async function deleteFile(req, res) {
             });
         }
 
+        const projectId = file.project.toString();
+        let deletedIds;
+
         if (file.type === "folder") {
-            await deleteFolderRecursively(file._id);
+            deletedIds = await deleteFolderRecursively(file._id);
         } else {
             await file.deleteOne();
+            deletedIds = [file._id.toString()];
         }
+        
+        getIO().to(projectId).emit("file:deleted", { fileIds: deletedIds , deletedBy: req.userId, username: req.username });
 
         res.status(200).json({
             message: "Deleted successfully",
