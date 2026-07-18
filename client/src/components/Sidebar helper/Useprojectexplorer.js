@@ -471,6 +471,21 @@ export const useProjectExplorer = (isLoggedIn, username, userId,closeFile,select
     }
   };
 
+  const runCode = async (language, code, input) => {
+  try {
+    const res = await axios.post(
+      `${import.meta.env.VITE_BASE_URL}/execute`,
+      { language, code, input },
+      { withCredentials: true }
+    );
+    return res.data; // { success, stage, output, exitCode }
+  } catch (err) {
+    console.log('Failed to execute code:', err);
+    toast.error(err.response?.data?.message || 'Failed to run code');
+    return null;
+  }
+};
+
   return {
     project,
     selectedProject,
@@ -488,5 +503,6 @@ export const useProjectExplorer = (isLoggedIn, username, userId,closeFile,select
     deleteFile,
     deleteFolder,
     updateFileContent,
+    runCode,
   };
 };

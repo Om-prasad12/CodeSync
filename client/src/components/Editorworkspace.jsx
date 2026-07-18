@@ -75,8 +75,10 @@ const ViewerAvatar = ({ username }) => {
 };
 
 const EditorWorkspace = ({
-  inputContent,
-  outputContent,
+  inputValue,
+  onInputChange,
+  outputContent, // { text, isError } | null
+  isRunning,
   saveFileContent,
 }) => {
   const {
@@ -308,13 +310,12 @@ const EditorWorkspace = ({
             Input
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-gray-950 text-gray-200 p-3 text-sm">
-            {inputContent ?? (
-              <textarea
-                rows={1}
-                className="block w-full h-full bg-transparent outline-none resize-none text-gray-200 placeholder-gray-600"
-                placeholder="Enter program input here..."
-              />
-            )}
+            <textarea
+              value={inputValue}
+              onChange={(e) => onInputChange(e.target.value)}
+              className="block w-full h-full bg-transparent outline-none resize-none text-gray-200 placeholder-gray-600"
+              placeholder="Enter program input here..."
+            />
           </div>
         </div>
 
@@ -330,8 +331,14 @@ const EditorWorkspace = ({
           <div className="h-9 flex items-center px-3 bg-gray-900 border-b border-gray-700 text-xs text-gray-400 font-medium flex-shrink-0">
             Output
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-gray-950 text-gray-200 p-3 text-sm font-mono">
-            {outputContent ?? (
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-gray-950 text-gray-200 p-3 text-sm font-mono whitespace-pre-wrap">
+            {isRunning ? (
+              <span className="text-gray-500">Running...</span>
+            ) : outputContent ? (
+              <span className={outputContent.isError ? 'text-red-400' : 'text-gray-200'}>
+                {outputContent.text}
+              </span>
+            ) : (
               <span className="text-gray-500">// Program output will appear here</span>
             )}
           </div>

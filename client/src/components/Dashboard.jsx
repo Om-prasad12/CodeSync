@@ -7,15 +7,12 @@ import {
   useFileExplorer,
 } from "../components/Sidebar helper/FileExplorerContext";
 import { useProjectExplorer } from "../components/Sidebar helper/useProjectExplorer";
+import { getMonacoLanguage } from "../components/Sidebar helper/Getfileicon";
 
 function Dashboard({ username, userId, onLogout, isLoggedIn }) {
   const [expanded, setExpanded] = useState(true);
 
   return (
-    // Provider has to wrap DashboardInner, since DashboardInner is the one
-    // that calls useFileExplorer() — a hook can only read a context from
-    // INSIDE that context's provider, never from the same component that
-    // renders the provider itself.
     <FileExplorerProvider expanded={expanded} username={username} userId={userId}>
       <DashboardInner
         username={username}
@@ -37,10 +34,7 @@ function DashboardInner({
   expanded,
   setExpanded,
 }) {
-  // Pulled out here so we can pass them into useProjectExplorer — that hook
-  // needs to know the currently open file (and how to close it) so it can
-  // force-close a file whose parent project just got closed/switched.
-  const { closeFile, selectedFile } = useFileExplorer();
+  const { closeFile, selectedFile, selectedFileContent } = useFileExplorer();
 
   const {
     project,
@@ -58,11 +52,42 @@ function DashboardInner({
     renameFile,
     deleteFile,
     updateFileContent,
+    runCode,
   } = useProjectExplorer(isLoggedIn, username, userId, closeFile, selectedFile);
+
+  // Run-code state — lives here since Navbar (trigger) and EditorWorkspace
+  // (input/output display) are siblings, both needing access to it.
+  const [consoleInput, setConsoleInput] = useState('');
+  const [consoleOutput, setConsoleOutput] = useState(null); // { text, isError } | null
+  const [isRunning, setIsRunning] = useState(false);
+
+  const handleRun = async () => {
+    if (!selectedFile || isRunning) return;
+
+    setIsRunning(true);
+    setConsoleOutput(null);
+
+    const language = getMonacoLanguage(selectedFile.name);
+    const result = await runCode(language, selectedFileContent ?? '', consoleInput);
+
+    if (result) {
+      setConsoleOutput({
+        text: result.output || '(no output)',
+        isError: !result.success,
+      });
+    }
+    setIsRunning(false);
+  };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <Navbar username={username} onLogout={onLogout} />
+      <Navbar
+        username={username}
+        onLogout={onLogout}
+        onRun={handleRun}
+        canRun={!!selectedFile}
+        running={isRunning}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -86,7 +111,13 @@ function DashboardInner({
         />
 
         <div className="flex-1 overflow-auto bg-gray-950">
-          <EditorWorkspace saveFileContent={updateFileContent} />
+          <EditorWorkspace
+            saveFileContent={updateFileContent}
+            inputValue={consoleInput}
+            onInputChange={setConsoleInput}
+            outputContent={consoleOutput}
+            isRunning={isRunning}
+          />
         </div>
       </div>
     </div>

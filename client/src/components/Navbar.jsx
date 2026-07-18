@@ -1,18 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MdExpandMore, MdLogout, MdPerson } from 'react-icons/md';
+import { MdLogout, MdPerson, MdExpandMore, MdPlayArrow } from 'react-icons/md';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-
-const LANGUAGES = [
-  { id: 'javascript', label: 'JavaScript', color: 'text-yellow-400' },
-  { id: 'python', label: 'Python', color: 'text-emerald-400' },
-  { id: 'cpp', label: 'C++', color: 'text-pink-400' },
-  { id: 'java', label: 'Java', color: 'text-orange-400' },
-  { id: 'typescript', label: 'TypeScript', color: 'text-sky-400' },
-  { id: 'go', label: 'Go', color: 'text-cyan-400' },
-  { id: 'rust', label: 'Rust', color: 'text-amber-500' },
-];
 
 // A small set of gradient pairs — picked deterministically from the username
 // so the same person always gets the same color, but different users vary.
@@ -33,14 +23,8 @@ const getAvatarGradient = (name) => {
   return AVATAR_GRADIENTS[charSum % AVATAR_GRADIENTS.length];
 };
 
-const Navbar = ({ activeLanguage, onSelectLanguage, username,onLogout }) => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+const Navbar = ({ username, onLogout, onRun, canRun, running }) => {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-
-  // Internal fallback state — lets the dropdown work standalone even if
-  // no activeLanguage/onSelectLanguage props are passed from a parent.
-  const [internalLanguage, setInternalLanguage] = useState('javascript');
-  const dropdownRef = useRef(null);
   const accountMenuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -48,16 +32,8 @@ const Navbar = ({ activeLanguage, onSelectLanguage, username,onLogout }) => {
   const initial = username?.trim()?.[0]?.toUpperCase() || 'U';
   const avatarGradient = getAvatarGradient(username);
 
-  const currentLanguageId = activeLanguage ?? internalLanguage;
-  const selected =
-    LANGUAGES.find((l) => l.id === currentLanguageId) || LANGUAGES[0];
-
-  // Close both dropdowns when clicking outside them
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
-      }
       if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
         setAccountMenuOpen(false);
       }
@@ -66,30 +42,22 @@ const Navbar = ({ activeLanguage, onSelectLanguage, username,onLogout }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = (lang) => {
-    setInternalLanguage(lang.id);
-    onSelectLanguage?.(lang.id);
-    setDropdownOpen(false);
+  const handleLogout = async () => {
+    setAccountMenuOpen(false);
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_BASE_URL}/auth/logout`,
+        {},
+        { withCredentials: true }
+      );
+      toast.success(res.data?.message || 'Logged out successfully');
+      onLogout?.();
+    } catch (err) {
+      const message = err.response?.data?.message || 'Logout failed. Please try again.';
+      console.error('Logout error:', err);
+      toast.error(message);
+    }
   };
-
-const handleLogout = async () => {
-  setAccountMenuOpen(false);
-
-  try {
-    const res = await axios.post(
-      `${import.meta.env.VITE_BASE_URL}/auth/logout`,
-      {},
-      { withCredentials: true }
-    );
-
-    toast.success(res.data?.message || 'Logged out successfully');
-    onLogout?.();
-  } catch (err) {
-    const message = err.response?.data?.message || 'Logout failed. Please try again.';
-    console.error('Logout error:', err);
-    toast.error(message);
-  }
-};
 
   return (
     <header className="w-full h-16 bg-gray-900 border-b border-gray-700 flex items-center justify-between px-4 relative z-50">
@@ -103,44 +71,21 @@ const handleLogout = async () => {
         </span>
       </div>
 
-      {/* Middle: Language dropdown */}
-      <div className="absolute left-1/2 -translate-x-1/2" ref={dropdownRef}>
+      {/* Middle: Run button */}
+      <div className="absolute left-1/2 -translate-x-1/2">
         <button
-          onClick={() => setDropdownOpen((prev) => !prev)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-750 border border-gray-700 text-sm text-gray-200 transition-colors min-w-[150px] justify-between"
+          type="button"
+          onClick={onRun}
+          disabled={!canRun || running}
+          className={`flex items-center gap-2 px-5 py-1.5 rounded-md text-sm font-medium transition-colors
+            ${!canRun || running
+              ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
+              : 'bg-gradient-to-tr from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-md'}
+          `}
         >
-          <span className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${selected.color.replace('text-', 'bg-')}`} />
-            {selected.label}
-          </span>
-          <MdExpandMore
-            className={`w-4 h-4 text-gray-400 transition-transform ${
-              dropdownOpen ? 'rotate-180' : ''
-            }`}
-          />
+          <MdPlayArrow className="w-4 h-4" />
+          {running ? 'Running...' : 'Run'}
         </button>
-
-        {dropdownOpen && (
-          <div className="absolute top-full mt-1 left-0 w-full min-w-[180px] bg-gray-800 border border-gray-700 rounded-md shadow-lg overflow-hidden">
-            {LANGUAGES.map((lang) => {
-              const isActive = lang.id === selected.id;
-              return (
-                <button
-                  key={lang.id}
-                  onClick={() => handleSelect(lang)}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left transition-colors
-                    ${isActive ? 'bg-gray-700 text-white' : 'text-gray-300 hover:bg-gray-700'}`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${lang.color.replace('text-', 'bg-')}`} />
-                    {lang.label}
-                  </span>
-                  {isActive && <span className="w-2 h-2 rounded-full bg-blue-400" />}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Right: Login button OR Profile avatar */}
