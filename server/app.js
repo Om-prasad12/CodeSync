@@ -1,8 +1,11 @@
-import express from "express";
 import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import http from "http";
+
 
 import connectDB from "./db/db.js";
 import { initSocket } from "./sockets/index.js";
@@ -11,8 +14,9 @@ import userRouter from "./routers/userRouter.js";
 import authRouter from "./routers/authRouter.js";
 import projectRouter from "./routers/projectRouter.js";
 import fileRouter from "./routers/fileRouter.js";
+import executeRouter from "./routers/executeRouter.js";
 
-dotenv.config();
+
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -33,6 +37,7 @@ app.use("/auth", authRouter);
 app.use("/user", userRouter);
 app.use("/project", projectRouter);
 app.use("/file", fileRouter);
+app.use("/execute", executeRouter);
 
 app.get("/", (req, res) => {
     res.send("Server is running 🚀");
