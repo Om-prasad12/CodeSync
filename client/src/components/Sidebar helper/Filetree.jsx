@@ -1,7 +1,7 @@
 import React from 'react';
 import { useFileExplorer } from './Fileexplorercontext';
-import FileRow from './FileRow';
-import FolderRow from './FolderRow';
+import FileRow from './Filerow';
+import FolderRow from './Folderrow';
 
 /** Renders a mixed list of file/folder tree nodes at a given indent depth */
 const FileTree = ({ nodes, depth, createFile, createFolder, renameFile, deleteFile }) => {
