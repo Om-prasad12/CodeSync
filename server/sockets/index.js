@@ -1,10 +1,15 @@
-// sockets/index.js
 import { Server } from "socket.io";
 
 let io;
 
 // In-memory tracking: { [fileId]: [{ socketId, username }] }
 const fileRoomMembers = {};
+
+// In-memory tracking of the LATEST live (unsaved) content per file.
+// Updated on every content-change event, cleared once a file's room is
+// empty. Used to catch up a newly-joining user to the current live state
+// of the room, instead of the (possibly stale) content from the database.
+const fileCurrentContent = {};
 
 export const initSocket = (server) => {
   io = new Server(server, {
@@ -38,8 +43,12 @@ export const initSocket = (server) => {
       const room = `file:${fileId}`;
       socket.join(room);
 
-      // Track this member
       if (!fileRoomMembers[fileId]) fileRoomMembers[fileId] = [];
+
+      // Was anyone already in this room BEFORE I joined? Determines whether
+      // it's meaningful to hand this joiner any tracked live content.
+      const hadExistingMembers = fileRoomMembers[fileId].length > 0;
+
       fileRoomMembers[fileId].push({ socketId: socket.id, username });
 
       // Tell everyone ELSE already in the room that a new person joined
@@ -52,9 +61,17 @@ export const initSocket = (server) => {
       const existingMembers = fileRoomMembers[fileId].filter(
         (m) => m.socketId !== socket.id
       );
+
+      // Also hand them the latest live content, but only if someone was
+      // already here AND we've actually tracked a live edit for this file
+      // this session — otherwise there's nothing to diverge from the DB.
       socket.emit("existing-file-viewers", {
         fileId,
-        viewers: existingMembers.map((m) => ({ userId: m.socketId, username: m.username })),
+        viewers: existingMembers.map((m) => ({
+          userId: m.socketId,
+          username: m.username,
+        })),
+        latestContent: hadExistingMembers ? fileCurrentContent[fileId] : undefined,
       });
 
       // console.log(`Socket ${socket.id} joined file ${fileId}`);
@@ -68,7 +85,14 @@ export const initSocket = (server) => {
         fileRoomMembers[fileId] = fileRoomMembers[fileId].filter(
           (m) => m.socketId !== socket.id
         );
-        if (fileRoomMembers[fileId].length === 0) delete fileRoomMembers[fileId];
+
+        // Room now empty — clear both tracking maps. The next person to
+        // open this file should start fresh from the DB, since there's no
+        // "live" state left to preserve once everyone's gone.
+        if (fileRoomMembers[fileId].length === 0) {
+          delete fileRoomMembers[fileId];
+          delete fileCurrentContent[fileId];
+        }
       }
 
       socket.broadcast.to(room).emit("user-left-file", {
@@ -76,6 +100,17 @@ export const initSocket = (server) => {
         username,
       });
       // console.log(`Socket ${socket.id} left file ${fileId}`);
+    });
+
+    socket.on("file:content-change", ({ fileId, content, userId }) => {
+      // Track this as the latest live content for the file, so anyone who
+      // joins the room AFTER this point gets caught up correctly.
+      fileCurrentContent[fileId] = content;
+
+      const room = `file:${fileId}`;
+      // Just relay to everyone else in the room — no DB write here, that stays
+      // on the existing REST save (Ctrl+S) to avoid hammering Mongo on every keystroke
+      socket.broadcast.to(room).emit("file:content-change", { fileId, content, userId });
     });
 
     socket.on("disconnect", () => {
@@ -92,7 +127,10 @@ export const initSocket = (server) => {
             userId: socket.id,
           });
         }
-        if (fileRoomMembers[fileId].length === 0) delete fileRoomMembers[fileId];
+        if (fileRoomMembers[fileId].length === 0) {
+          delete fileRoomMembers[fileId];
+          delete fileCurrentContent[fileId]; // same cleanup as the graceful leave-file path
+        }
       }
     });
   });

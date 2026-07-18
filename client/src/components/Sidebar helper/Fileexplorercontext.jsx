@@ -28,12 +28,10 @@ export const FileExplorerProvider = ({
   const [openMenuFor, setOpenMenuFor] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFileContent, setSelectedFileContent] = useState(null); // live editor buffer
-  const [savedContent, setSavedContent] = useState(null); // last-saved baseline
+  const [savedContent, setSavedContent] = useState(null); // last-saved (DB) baseline
   const [fileContentLoading, setFileContentLoading] = useState(false);
   const [fileViewers, setFileViewers] = useState([]);
 
-  // { type: 'switch', file, content } | { type: 'close' } | null
-  // Set whenever the user tries to switch/close while the open file is dirty.
   const [pendingAction, setPendingAction] = useState(null);
 
   const toggleMenu = (id) => {
@@ -55,54 +53,95 @@ export const FileExplorerProvider = ({
 
   const isDirty = !!selectedFile && selectedFileContent !== savedContent;
 
-const currentFileRoomRef = useRef(null);
-const fileId = selectedFile?._id || selectedFile?.id || null;
+  const currentFileRoomRef = useRef(null);
+  const fileId = selectedFile?._id || selectedFile?.id || null;
 
-useEffect(() => {
-  if (fileId) {
-    socket.emit("join-file", { fileId, username });
-    currentFileRoomRef.current = fileId;
-  }
+  // Debounce content changes so we don't flood the socket on every keystroke
+  const contentChangeTimeoutRef = useRef(null);
 
-  setFileViewers([]); // reset when switching files
+  // True while WE are setting content programmatically (loading from DB, or
+  // applying a remote update) — Monaco's onChange fires even for these
+  // programmatic changes, and we must NOT broadcast in that case, or we'd
+  // re-emit stale/duplicate content back into the room.
+  const isExternalUpdateRef = useRef(false);
 
-  // NEW: populate with whoever was already in the room when I joined
-  const handleExistingViewers = ({ fileId: eventFileId, viewers }) => {
-    if (eventFileId !== fileId) return; // guard against stale/late responses
-    setFileViewers(viewers);
-  };
+  // Holds live content received via "existing-file-viewers" if it arrives
+  // WHILE the DB fetch in selectFile is still in flight. selectFile checks
+  // this once its fetch resolves, and prefers it over the DB content —
+  // otherwise the DB fetch finishing later would overwrite the correct
+  // live content with stale data.
+  const pendingRemoteContentRef = useRef(undefined);
 
-  const handleUserJoinedFile = ({ userId: joinedUserId, username: joinedUsername }) => {
-    setFileViewers((prev) => {
-      if (prev.some((v) => v.userId === joinedUserId)) return prev;
-      return [...prev, { userId: joinedUserId, username: joinedUsername }];
-    });
-  };
-
-  const handleUserLeftFile = ({ userId: leftUserId }) => {
-    setFileViewers((prev) => prev.filter((v) => v.userId !== leftUserId));
-  };
-
-  socket.on("existing-file-viewers", handleExistingViewers);
-  socket.on("user-joined-file", handleUserJoinedFile);
-  socket.on("user-left-file", handleUserLeftFile);
-
-  return () => {
-    if (currentFileRoomRef.current) {
-      socket.emit("leave-file", { fileId: currentFileRoomRef.current, username });
-      currentFileRoomRef.current = null;
+  useEffect(() => {
+    if (fileId) {
+      socket.emit("join-file", { fileId, username });
+      currentFileRoomRef.current = fileId;
     }
-    socket.off("existing-file-viewers", handleExistingViewers);
-    socket.off("user-joined-file", handleUserJoinedFile);
-    socket.off("user-left-file", handleUserLeftFile);
-  };
-}, [fileId, username]);
+
+    setFileViewers([]);
+    pendingRemoteContentRef.current = undefined; // reset for the new file
+
+    const handleExistingViewers = ({ fileId: eventFileId, viewers, latestContent }) => {
+      if (eventFileId !== fileId) return;
+      setFileViewers(viewers);
+
+      if (latestContent !== undefined && latestContent !== null) {
+        if (fileContentLoading) {
+          // DB fetch (in selectFile) hasn't resolved yet — stash it, selectFile
+          // will pick this up once its fetch completes instead of using stale DB content.
+          pendingRemoteContentRef.current = latestContent;
+        } else {
+          // DB fetch already finished — safe to apply immediately.
+          isExternalUpdateRef.current = true;
+          setSelectedFileContent(latestContent);
+        }
+      }
+    };
+
+    const handleUserJoinedFile = ({ userId: joinedUserId, username: joinedUsername }) => {
+      setFileViewers((prev) => {
+        if (prev.some((v) => v.userId === joinedUserId)) return prev;
+        return [...prev, { userId: joinedUserId, username: joinedUsername }];
+      });
+    };
+
+    const handleUserLeftFile = ({ userId: leftUserId }) => {
+      setFileViewers((prev) => prev.filter((v) => v.userId !== leftUserId));
+    };
+
+    const handleContentChange = ({ fileId: eventFileId, content, userId: senderId }) => {
+      if (eventFileId !== fileId) return;
+      if (senderId === userId) return;
+
+      isExternalUpdateRef.current = true;
+      setSelectedFileContent(content);
+      // Deliberately NOT calling markSaved here — this is someone else's
+      // unsaved draft, not a confirmed save. isDirty should still reflect
+      // MY OWN save state, not whether the file matches everyone's live edits.
+    };
+
+    socket.on("existing-file-viewers", handleExistingViewers);
+    socket.on("user-joined-file", handleUserJoinedFile);
+    socket.on("user-left-file", handleUserLeftFile);
+    socket.on("file:content-change", handleContentChange);
+
+    return () => {
+      if (currentFileRoomRef.current) {
+        socket.emit("leave-file", { fileId: currentFileRoomRef.current, username });
+        currentFileRoomRef.current = null;
+      }
+      socket.off("existing-file-viewers", handleExistingViewers);
+      socket.off("user-joined-file", handleUserJoinedFile);
+      socket.off("user-left-file", handleUserLeftFile);
+      socket.off("file:content-change", handleContentChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileId, username]);
 
   // Actually performs the switch — no dirty-check, callers decide when it's safe to call this.
   const selectFile = async (file, contentOrFetcher) => {
     const id = file._id || file.id;
-    const alreadySelected =
-      selectedFile && (selectedFile._id || selectedFile.id) === id;
+    const alreadySelected = selectedFile && (selectedFile._id || selectedFile.id) === id;
 
     setSelectedFile(file);
 
@@ -113,32 +152,65 @@ useEffect(() => {
     if (typeof contentOrFetcher === "function") {
       setFileContentLoading(true);
       try {
-        const content = await contentOrFetcher();
-        setSelectedFileContent(content ?? "");
-        setSavedContent(content ?? "");
+        const dbContent = await contentOrFetcher();
+
+        // If a live update arrived WHILE we were fetching, prefer it over
+        // the (now potentially stale) DB content.
+        const finalContent = pendingRemoteContentRef.current ?? (dbContent ?? "");
+        pendingRemoteContentRef.current = undefined;
+
+        isExternalUpdateRef.current = true;
+        setSelectedFileContent(finalContent);
+
+        // savedContent should always reflect the actual DB value, NOT the
+        // live content — so isDirty correctly shows "unsaved" if the live
+        // content differs from what's actually persisted.
+        setSavedContent(dbContent ?? "");
       } catch (err) {
         console.log("Failed to fetch file content:", err);
+        isExternalUpdateRef.current = true;
         setSelectedFileContent("");
         setSavedContent("");
       } finally {
         setFileContentLoading(false);
       }
     } else {
+      isExternalUpdateRef.current = true;
       const value = contentOrFetcher ?? "";
       setSelectedFileContent(value);
       setSavedContent(value);
     }
   };
 
-  // What FileRow/menus should call instead of selectFile directly — guards against
-  // silently discarding unsaved changes when switching to a different file.
+  const broadcastContentChange = (content) => {
+    if (!fileId) return;
+
+    clearTimeout(contentChangeTimeoutRef.current);
+    contentChangeTimeoutRef.current = setTimeout(() => {
+      socket.emit("file:content-change", { fileId, content, userId });
+    }, 300);
+  };
+
+  // The ONLY function tied to Monaco's onChange. Skips broadcasting when the
+  // content change was caused by US setting it programmatically (DB load or
+  // remote update), so we don't echo stale/duplicate content back to the room.
+  const updateDraftContent = (content) => {
+    setSelectedFileContent(content);
+
+    if (isExternalUpdateRef.current) {
+      isExternalUpdateRef.current = false; // clear so the NEXT real keystroke broadcasts normally
+      return;
+    }
+
+    broadcastContentChange(content);
+  };
+
   const requestSelectFile = (file, content) => {
     const id = file._id || file.id;
-    const sameFile =
-      selectedFile && (selectedFile._id || selectedFile.id) === id;
+    const sameFile = selectedFile && (selectedFile._id || selectedFile.id) === id;
 
     if (sameFile) {
-      selectFile(file, content); // no-op-safe, see selectFile's alreadySelected guard
+      selectFile(file, content);
       return;
     }
 
@@ -164,10 +236,6 @@ useEffect(() => {
   };
 
   const cancelPendingAction = () => setPendingAction(null);
-
-  const updateDraftContent = (content) => {
-    setSelectedFileContent(content);
-  };
 
   const markSaved = (content) => {
     setSavedContent(content);
