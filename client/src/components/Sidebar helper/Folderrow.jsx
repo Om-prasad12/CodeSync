@@ -7,7 +7,7 @@ import {
   MdNoteAdd,
   MdCreateNewFolder,
 } from "react-icons/md";
-import { useFileExplorer } from "./FileExplorerContext";
+import { useFileExplorer } from "./Fileexplorercontext";
 import { getFileIcon } from "./Getfileicon";
 import ActionMenu from "./ActionMenu";
 import FileTree from "./FileTree";

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { MdClose } from 'react-icons/md';
-import { useFileExplorer } from './Sidebar helper/FileExplorerContext';
+import { useFileExplorer } from './Sidebar helper/Fileexplorercontext';
 import { getMonacoLanguage } from './Sidebar helper/Getfileicon';
 import Editor, { loader } from '@monaco-editor/react';
 

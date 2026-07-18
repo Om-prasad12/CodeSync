@@ -10,7 +10,7 @@ import {
   MdPersonRemove
 } from 'react-icons/md';
 import { VscRepo } from 'react-icons/vsc';
-import { useFileExplorer } from './FileExplorerContext';
+import { useFileExplorer } from './Fileexplorercontext';
 import { buildTree } from './Buildtree';
 import ActionMenu from './ActionMenu';
 import FileTree from './FileTree';

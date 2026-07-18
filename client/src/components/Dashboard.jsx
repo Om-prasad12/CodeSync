@@ -5,7 +5,7 @@ import EditorWorkspace from "../components/Editorworkspace";
 import {
   FileExplorerProvider,
   useFileExplorer,
-} from "../components/Sidebar helper/FileExplorerContext";
+} from "../components/Sidebar helper/Fileexplorercontext";
 import { useProjectExplorer } from "../components/Sidebar helper/useProjectExplorer";
 import { getMonacoLanguage } from "../components/Sidebar helper/Getfileicon";
 
