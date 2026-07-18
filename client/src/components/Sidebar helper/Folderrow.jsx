@@ -9,8 +9,8 @@ import {
 } from "react-icons/md";
 import { useFileExplorer } from "./Fileexplorercontext";
 import { getFileIcon } from "./Getfileicon";
-import ActionMenu from "./ActionMenu";
-import FileTree from "./FileTree";
+import ActionMenu from "./Actionmenu";
+import FileTree from "./Filetree";
 import InputModal from "./InputModal";
 
 /**

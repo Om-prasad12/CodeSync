@@ -6,7 +6,7 @@ import {
   FileExplorerProvider,
   useFileExplorer,
 } from "../components/Sidebar helper/Fileexplorercontext";
-import { useProjectExplorer } from "../components/Sidebar helper/useProjectExplorer";
+import { useProjectExplorer } from "../components/Sidebar helper/Useprojectexplorer";
 import { getMonacoLanguage } from "../components/Sidebar helper/Getfileicon";
 
 function Dashboard({ username, userId, onLogout, isLoggedIn }) {

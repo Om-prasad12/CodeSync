@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { MdClose, MdAdd } from "react-icons/md";
-import ProjectItem from "./Sidebar helper/ProjectItem";
+import ProjectItem from "./Sidebar helper/Projectitem";
 import InputModal from "./Sidebar helper/InputModal";
 
 const Sidebar = ({

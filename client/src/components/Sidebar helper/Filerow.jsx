@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { MdMoreVert, MdOpenInNew, MdEdit, MdDelete } from "react-icons/md";
 import { useFileExplorer } from "./Fileexplorercontext";
 import { getFileIcon } from "./Getfileicon";
-import ActionMenu from "./ActionMenu";
+import ActionMenu from "./Actionmenu";
 import InputModal from "./InputModal";
 
 const FileRow = ({ node, depth, renameFile, deleteFile }) => {

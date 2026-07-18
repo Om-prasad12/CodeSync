@@ -12,8 +12,8 @@ import {
 import { VscRepo } from 'react-icons/vsc';
 import { useFileExplorer } from './Fileexplorercontext';
 import { buildTree } from './Buildtree';
-import ActionMenu from './ActionMenu';
-import FileTree from './FileTree';
+import ActionMenu from './Actionmenu';
+import FileTree from './Filetree';
 import InputModal from './InputModal';
 
 /**
